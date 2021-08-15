@@ -1,0 +1,85 @@
+|Vasile Madalin Constantin 322CB
+--------------------------------------------------------------------------------
+|	*Pentru rezolvarea acestei teme, am implementat un server, in care am folosit
+|	 biblioteca de socketi pentru ca acesta sa fie capabil de multiplexare I/0.
+|	 Astfel server-ul permite conectarea unor clienti
+|    TCP, UDP, dar si primirea de informatii de la tastatura.
+|   *Tot, in cadrul temei, am implemetat un client TCP, care este capabil sa se
+|	 conecteze la server si sa se aboneze la anumite topic-uri primite
+|	 de clientii UDP, tot procesul de abonare realizandu-se
+|    in server.
+---------------------------------------------------------------------------------
+|	*De fiecare data cand un client trimite un mesaj server-ului, acesta trimite
+|	 o structura, alcatuita din id-ul clientului, mesajul propriu-zis, dar si 
+|	 index-ul mesajului respectiv, pentru a cunoaste in momentul primirii mesajul 
+|	 intial, folosit doar pentru a seta id-ul clientului
+---------------------------------------------------------------------------------
+|	*Pentru ca primirea mesajelor de la clientul UDP sa fie eficienta, am creat
+|		un protcol, care consta intr-o structura de tipul
+|		struct __attribute__((__packed__)) protocol {
+|			char topic[TOPIC_LENGTH]; // topicul care urmeaza sa fie extras
+|			                          // din buffer
+|			uint8_t tip_date; // tipul de date care ne indica cum o sa parsam
+|			                  // payload-ul
+|			char payload[PAYLOAD_LENGTH];// payload-ul
+|		};
+|		dar si intr-un procedeu de parsare care functioneaza in urmatorul mod:
+|			daca type-ul este 0, se extrage octeul de semn de la payload,
+|								 si uint32-ul de la payload+1, urmand ca acesta
+|								 sa fie convertit la little endian(am folosit ntohl)
+|			daca type-ul este 1, se extrage uint16_t, care urmeaza sa fie convertit
+|								 in little endian apoi in float si apoi impartit
+|								 la 100
+|			daca type-ul este 2, se extrage octeul de semn de la payload,
+|								 si uint32-ul de la payload+1(se converteste la 
+|								 little endian),
+|								 apoi uint8_t(puterea lui 10) de la payload+5
+|								 pentru afisare float-ului am creat o functie 
+|								 numita convert_float_to_string care in functie 
+|								 de puterea lui 10 si semn, adauga intr-un string 
+|								 intreg-ul primit in forma de numar rational
+|			daca type-ul este 3, sirul de caractere este chiar payload-ul
+|		in toate cele 4 cazuri, am creat un sir de caractere in care am pus mesajul
+|		care trebuie trimis la client
+|		am parcurs vectorul de abonati si am trimis celor activi, daca un client 
+|		nu este activ si are sf-ul egal cu 1, ii stochez sirul intr-o matrice si 
+|		afisez mesajele netrimise in momentul in care acesta se reconecteaza
+---------------------------------------------------------------------------------
+|	*Pentru evidenta clientilor conectati am creat un vector de structuri in care 
+|	 fiecare element este o structura de tipul
+|	 typedef struct info_clients {
+|		char id_client[ID_CLIENT_LENGTH]; // id-ul clientului
+|		char ip_client[IP_CLIENT_LENGTH]; // ip-ul clientului
+|		int port; // port - ul clientului
+|		int sock; // socket-ul clientului
+|	 } t_info_clients;
+|	 De fiecare data cand un client se conecteaza, se verifica daca clientul 
+|	 exista deja(se trimite mesaj corespunzator)
+|	 daca acesta s-a reconectat, se verifica sf-ul, daca este 1, 
+|	 se trimit mesajele netrimise
+|	 Daca un client se deconecteaza de la server, este scos din acest vector
+|	 Pentru a permite conectarea unui numar variabil de clienti, vectorul se 
+|	 realoca de fiecare data cand un client se conecteaza
+|
+|	*Pentru evidena abonatilor am creat un vector de structuri in care fiecare
+|	element este o strutura de tipul 
+|	typedef struct info_subs {
+|		char topic[TOPIC_LENGTH]; // subiectul
+|		char id_client[ID_CLIENT_LENGTH]; // id-ul clientului
+|		char **client_matrix;// matricea care contine mesajele 
+|								// care trebuie trimise clientului
+|		int number_messages; // numarul de mesaje netrimise
+|		int sock; // socketul pe care este conectat clientul
+|		int sf;  // store and forward
+|		int status; // 1 daca clientul este conectat, 0 in caz contrar
+|	} t_info_subs;
+|	De fiecare data cand un client se aboneaza la un topic, se adauga un element 
+|	nou in acest vector, astfel se stie carui abonat sa se trimita un topic, 
+|	sau daca acesta este conectat sau nu
+|	In cazul in care un abonat are sf 1, se aloca memorie si pentru matricea din 
+|	structura si se adauga in ea, mesajele care nu pot fi trimise cand utiizatorul 
+|	este deconectat, dar se trimit in moemntul in care acesta se reconecteaza
+|
+|	*Memoria ocupata de acesti vectori este eliberata in momentul in care se face
+|	exit pe server 
+---------------------------------------------------------------------------------
